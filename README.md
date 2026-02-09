@@ -1,7 +1,6 @@
 # Clawra
 <img width="300"  alt="image" src="https://github.com/user-attachments/assets/41512c51-e61d-4550-b461-eed06a1b0ec8" />
 
-Add selfie superpowers to your OpenClaw agent using xAI Grok Imagine.
 
 ## Quick Install
 
