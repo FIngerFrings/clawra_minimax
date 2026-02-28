@@ -1,16 +1,17 @@
 ---
 name: clawra-selfie
-description: Edit Clawra's reference image with Grok Imagine (xAI Aurora) and send selfies to messaging channels via OpenClaw
+description: Generate Clawra selfies with MiniMax image-01 and send to messaging channels via OpenClaw
 allowed-tools: Bash(npm:*) Bash(npx:*) Bash(openclaw:*) Bash(curl:*) Read Write WebFetch
 ---
 
 # Clawra Selfie
 
-Edit a fixed reference image using xAI's Grok Imagine model and distribute it across messaging platforms (WhatsApp, Telegram, Discord, Slack, etc.) via OpenClaw.
+Generate images using MiniMax's image-01 model and distribute them across messaging platforms (WhatsApp, Telegram, Discord, Slack, etc.) via OpenClaw.
 
 ## Reference Image
 
-The skill uses a fixed reference image hosted on jsDelivr CDN:
+The skill conceptually uses a fixed reference appearance:
+(For MiniMax, this is handled via prompting or `subject_reference` parameter in advanced usages. Currently we generate directly from prompt.)
 
 ```
 https://cdn.jsdelivr.net/gh/SumeLabs/clawra@main/assets/clawra.png
@@ -29,14 +30,14 @@ https://cdn.jsdelivr.net/gh/SumeLabs/clawra@main/assets/clawra.png
 ### Required Environment Variables
 
 ```bash
-FAL_KEY=your_fal_api_key          # Get from https://fal.ai/dashboard/keys
+MINIMAX_API_KEY=your_minimax_key  # Get from https://platform.minimaxi.com/user-center/basic-information/interface-key
 OPENCLAW_GATEWAY_TOKEN=your_token  # From: openclaw doctor --generate-gateway-token
 ```
 
 ### Workflow
 
-1. **Get user prompt** for how to edit the image
-2. **Edit image** via fal.ai Grok Imagine Edit API with fixed reference
+1. **Get user prompt** for how to generate the image
+2. **Generate image** via MiniMax API
 3. **Extract image URL** from response
 4. **Send to OpenClaw** with target channel(s)
 
@@ -85,13 +86,11 @@ a close-up selfie taken by herself at a cozy cafe with warm lighting, direct eye
 | close-up, portrait, face, eyes, smile | `direct` |
 | full-body, mirror, reflection | `mirror` |
 
-### Step 2: Edit Image with Grok Imagine
+### Step 2: Generate Image with MiniMax
 
-Use the fal.ai API to edit the reference image:
+Use the MiniMax API to generate the image:
 
 ```bash
-REFERENCE_IMAGE="https://cdn.jsdelivr.net/gh/SumeLabs/clawra@main/assets/clawra.png"
-
 # Mode 1: Mirror Selfie
 PROMPT="make a pic of this person, but <USER_CONTEXT>. the person is taking a mirror selfie"
 
@@ -100,12 +99,11 @@ PROMPT="a close-up selfie taken by herself at <USER_CONTEXT>, direct eye contact
 
 # Build JSON payload with jq (handles escaping properly)
 JSON_PAYLOAD=$(jq -n \
-  --arg image_url "$REFERENCE_IMAGE" \
   --arg prompt "$PROMPT" \
-  '{image_url: $image_url, prompt: $prompt, num_images: 1, output_format: "jpeg"}')
+  '{model: "image-01", prompt: $prompt, aspect_ratio: "1:1", response_format: "url"}')
 
-curl -X POST "https://fal.run/xai/grok-imagine-image/edit" \
-  -H "Authorization: Key $FAL_KEY" \
+curl -X POST "https://api.minimaxi.com/v1/image_generation" \
+  -H "Authorization: Bearer $MINIMAX_API_KEY" \
   -H "Content-Type: application/json" \
   -d "$JSON_PAYLOAD"
 ```
@@ -113,21 +111,22 @@ curl -X POST "https://fal.run/xai/grok-imagine-image/edit" \
 **Response Format:**
 ```json
 {
-  "images": [
-    {
-      "url": "https://v3b.fal.media/files/...",
-      "content_type": "image/jpeg",
-      "width": 1024,
-      "height": 1024
-    }
-  ],
-  "revised_prompt": "Enhanced prompt text..."
+  "id": "...",
+  "data": {
+    "image_urls": [
+      "https://..."
+    ]
+  },
+  "base_resp": {
+    "status_code": 0,
+    "status_msg": "success"
+  }
 }
 ```
 
 ### Step 3: Send Image via OpenClaw
 
-Use the OpenClaw messaging API to send the edited image:
+Use the OpenClaw messaging API to send the generated image:
 
 ```bash
 openclaw message send \
@@ -154,21 +153,18 @@ curl -X POST "http://localhost:18789/message" \
 
 ```bash
 #!/bin/bash
-# grok-imagine-edit-send.sh
+# clawra-selfie.sh
 
 # Check required environment variables
-if [ -z "$FAL_KEY" ]; then
-  echo "Error: FAL_KEY environment variable not set"
+if [ -z "$MINIMAX_API_KEY" ]; then
+  echo "Error: MINIMAX_API_KEY environment variable not set"
   exit 1
 fi
-
-# Fixed reference image
-REFERENCE_IMAGE="https://cdn.jsdelivr.net/gh/SumeLabs/clawra@main/assets/clawra.png"
 
 USER_CONTEXT="$1"
 CHANNEL="$2"
 MODE="${3:-auto}"  # mirror, direct, or auto
-CAPTION="${4:-Edited with Grok Imagine}"
+CAPTION="${4:-Generated with MiniMax image-01}"
 
 if [ -z "$USER_CONTEXT" ] || [ -z "$CHANNEL" ]; then
   echo "Usage: $0 <user_context> <channel> [mode] [caption]"
@@ -198,29 +194,36 @@ else
 fi
 
 echo "Mode: $MODE"
-echo "Editing reference image with prompt: $EDIT_PROMPT"
+echo "Generating image with prompt: $EDIT_PROMPT"
 
-# Edit image (using jq for proper JSON escaping)
+# Generate image (using jq for proper JSON escaping)
 JSON_PAYLOAD=$(jq -n \
-  --arg image_url "$REFERENCE_IMAGE" \
   --arg prompt "$EDIT_PROMPT" \
-  '{image_url: $image_url, prompt: $prompt, num_images: 1, output_format: "jpeg"}')
+  '{model: "image-01", prompt: $prompt, aspect_ratio: "1:1", response_format: "url"}')
 
-RESPONSE=$(curl -s -X POST "https://fal.run/xai/grok-imagine-image/edit" \
-  -H "Authorization: Key $FAL_KEY" \
+RESPONSE=$(curl -s -X POST "https://api.minimaxi.com/v1/image_generation" \
+  -H "Authorization: Bearer $MINIMAX_API_KEY" \
   -H "Content-Type: application/json" \
   -d "$JSON_PAYLOAD")
 
-# Extract image URL
-IMAGE_URL=$(echo "$RESPONSE" | jq -r '.images[0].url')
-
-if [ "$IMAGE_URL" == "null" ] || [ -z "$IMAGE_URL" ]; then
-  echo "Error: Failed to edit image"
+# Check status
+STATUS_CODE=$(echo "$RESPONSE" | jq -r '.base_resp.status_code')
+if [ "$STATUS_CODE" != "0" ]; then
+  echo "Error: Failed to generate image"
   echo "Response: $RESPONSE"
   exit 1
 fi
 
-echo "Image edited: $IMAGE_URL"
+# Extract image URL
+IMAGE_URL=$(echo "$RESPONSE" | jq -r '.data.image_urls[0]')
+
+if [ "$IMAGE_URL" == "null" ] || [ -z "$IMAGE_URL" ]; then
+  echo "Error: Failed to extract image from response"
+  echo "Response: $RESPONSE"
+  exit 1
+fi
+
+echo "Image generated: $IMAGE_URL"
 echo "Sending to channel: $CHANNEL"
 
 # Send via OpenClaw
@@ -236,22 +239,19 @@ echo "Done!"
 ## Node.js/TypeScript Implementation
 
 ```typescript
-import { fal } from "@fal-ai/client";
 import { exec } from "child_process";
 import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
-const REFERENCE_IMAGE = "https://cdn.jsdelivr.net/gh/SumeLabs/clawra@main/assets/clawra.png";
-
-interface GrokImagineResult {
-  images: Array<{
-    url: string;
-    content_type: string;
-    width: number;
-    height: number;
-  }>;
-  revised_prompt?: string;
+interface MiniMaxResult {
+  base_resp: {
+    status_code: number;
+    status_msg: string;
+  };
+  data: {
+    image_urls: string[];
+  };
 }
 
 type SelfieMode = "mirror" | "direct" | "auto";
@@ -272,16 +272,16 @@ function buildPrompt(userContext: string, mode: "mirror" | "direct"): string {
   return `make a pic of this person, but ${userContext}. the person is taking a mirror selfie`;
 }
 
-async function editAndSend(
+async function generateAndSend(
   userContext: string,
   channel: string,
   mode: SelfieMode = "auto",
   caption?: string
 ): Promise<string> {
-  // Configure fal.ai client
-  fal.config({
-    credentials: process.env.FAL_KEY!
-  });
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    throw new Error("MINIMAX_API_KEY environment variable not set");
+  }
 
   // Determine mode
   const actualMode = mode === "auto" ? detectMode(userContext) : mode;
@@ -290,36 +290,51 @@ async function editAndSend(
   // Construct the prompt
   const editPrompt = buildPrompt(userContext, actualMode);
 
-  // Edit reference image with Grok Imagine
-  console.log(`Editing image: "${editPrompt}"`);
+  // Generate image with MiniMax
+  console.log(`Generating image: "${editPrompt}"`);
 
-  const result = await fal.subscribe("xai/grok-imagine-image/edit", {
-    input: {
-      image_url: REFERENCE_IMAGE,
+  const response = await fetch("https://api.minimaxi.com/v1/image_generation", {
+    method: "POST",
+    headers: {
+      "Authorization": \`Bearer \${apiKey}\`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "image-01",
       prompt: editPrompt,
-      num_images: 1,
-      output_format: "jpeg"
-    }
-  }) as { data: GrokImagineResult };
+      aspect_ratio: "1:1",
+      response_format: "url"
+    })
+  });
 
-  const imageUrl = result.data.images[0].url;
-  console.log(`Edited image URL: ${imageUrl}`);
+  if (!response.ok) {
+    throw new Error(\`HTTP request failed: \${response.status}\`);
+  }
+
+  const result = await response.json() as MiniMaxResult;
+
+  if (result.base_resp.status_code !== 0) {
+    throw new Error(\`Image generation failed: \${result.base_resp.status_msg}\`);
+  }
+
+  const imageUrl = result.data.image_urls[0];
+  console.log(\`Generated image URL: \${imageUrl}\`);
 
   // Send via OpenClaw
-  const messageCaption = caption || `Edited with Grok Imagine`;
+  const messageCaption = caption || \`Generated with MiniMax image-01\`;
 
   await execAsync(
-    `openclaw message send --action send --channel "${channel}" --message "${messageCaption}" --media "${imageUrl}"`
+    \`openclaw message send --action send --channel "\${channel}" --message "\${messageCaption}" --media "\${imageUrl}"\`
   );
 
-  console.log(`Sent to ${channel}`);
+  console.log(\`Sent to \${channel}\`);
   return imageUrl;
 }
 
 // Usage Examples
 
 // Mirror mode (auto-detected from "wearing")
-editAndSend(
+generateAndSend(
   "wearing a cyberpunk outfit with neon lights",
   "#art-gallery",
   "auto",
@@ -329,7 +344,7 @@ editAndSend(
 // → Prompt: "make a pic of this person, but wearing a cyberpunk outfit with neon lights. the person is taking a mirror selfie"
 
 // Direct mode (auto-detected from "cafe")
-editAndSend(
+generateAndSend(
   "a cozy cafe with warm lighting",
   "#photography",
   "auto"
@@ -338,7 +353,7 @@ editAndSend(
 // → Prompt: "a close-up selfie taken by herself at a cozy cafe with warm lighting, direct eye contact..."
 
 // Explicit mode override
-editAndSend("casual street style", "#fashion", "direct");
+generateAndSend("casual street style", "#fashion", "direct");
 ```
 
 ## Supported Platforms
@@ -354,44 +369,38 @@ OpenClaw supports sending to:
 | Signal | Phone number | `+1234567890` |
 | MS Teams | Channel reference | (varies) |
 
-## Grok Imagine Edit Parameters
+## MiniMax API Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `image_url` | string | required | URL of image to edit (fixed in this skill) |
-| `prompt` | string | required | Edit instruction |
-| `num_images` | 1-4 | 1 | Number of images to generate |
-| `output_format` | enum | "jpeg" | jpeg, png, webp |
+| `model` | string | "image-01" | Model version (e.g., image-01) |
+| `prompt` | string | required | Generation instruction |
+| `aspect_ratio` | enum | "1:1" | 1:1, 16:9, 4:3, 3:2, 2:3, 3:4, 9:16, 21:9 |
+| `response_format` | enum | "url" | Return format |
 
 ## Setup Requirements
 
-### 1. Install fal.ai client (for Node.js usage)
-```bash
-npm install @fal-ai/client
-```
-
-### 2. Install OpenClaw CLI
+### 1. Install OpenClaw CLI
 ```bash
 npm install -g openclaw
 ```
 
-### 3. Configure OpenClaw Gateway
+### 2. Configure OpenClaw Gateway
 ```bash
 openclaw config set gateway.mode=local
 openclaw doctor --generate-gateway-token
 ```
 
-### 4. Start OpenClaw Gateway
+### 3. Start OpenClaw Gateway
 ```bash
 openclaw gateway start
 ```
 
 ## Error Handling
 
-- **FAL_KEY missing**: Ensure the API key is set in environment
-- **Image edit failed**: Check prompt content and API quota
+- **MINIMAX_API_KEY missing**: Ensure the API key is set in environment
+- **Image generation failed**: Check prompt content, API format, and MiniMax API balance
 - **OpenClaw send failed**: Verify gateway is running and channel exists
-- **Rate limits**: fal.ai has rate limits; implement retry logic if needed
 
 ## Tips
 
@@ -408,5 +417,5 @@ openclaw gateway start
    - "a peaceful park in autumn"
 
 3. **Mode selection**: Let auto-detect work, or explicitly specify for control
-4. **Batch sending**: Edit once, send to multiple channels
+4. **Batch sending**: Generate once, send to multiple channels
 5. **Scheduling**: Combine with OpenClaw scheduler for automated posts

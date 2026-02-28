@@ -1,14 +1,14 @@
 #!/bin/bash
 # grok-imagine-send.sh
-# Generate an image with Grok Imagine and send it via OpenClaw
+# Generate an image with MiniMax image-01 and send it via OpenClaw
 #
 # Usage: ./grok-imagine-send.sh "<prompt>" "<channel>" ["<caption>"]
 #
 # Environment variables required:
-#   FAL_KEY - Your fal.ai API key
+#   MINIMAX_API_KEY - Your MiniMax API key
 #
 # Example:
-#   FAL_KEY=your_key ./grok-imagine-send.sh "A sunset over mountains" "#art" "Check this out!"
+#   MINIMAX_API_KEY=your_key ./grok-imagine-send.sh "A sunset over mountains" "#art" "Check this out!"
 
 set -euo pipefail
 
@@ -31,9 +31,9 @@ log_error() {
 }
 
 # Check required environment variables
-if [ -z "${FAL_KEY:-}" ]; then
-    log_error "FAL_KEY environment variable not set"
-    echo "Get your API key from: https://fal.ai/dashboard/keys"
+if [ -z "${MINIMAX_API_KEY:-}" ]; then
+    log_error "MINIMAX_API_KEY environment variable not set"
+    echo "Get your API key from: https://platform.minimaxi.com/user-center/basic-information/interface-key"
     exit 1
 fi
 
@@ -74,30 +74,30 @@ if [ -z "$PROMPT" ] || [ -z "$CHANNEL" ]; then
     exit 1
 fi
 
-log_info "Generating image with Grok Imagine..."
+log_info "Generating image with MiniMax image-01..."
 log_info "Prompt: $PROMPT"
 log_info "Aspect ratio: $ASPECT_RATIO"
 
-# Generate image via fal.ai
-RESPONSE=$(curl -s -X POST "https://fal.run/xai/grok-imagine-image" \
-    -H "Authorization: Key $FAL_KEY" \
+# Generate image via MiniMax API
+RESPONSE=$(curl -s -X POST "https://api.minimaxi.com/v1/image_generation" \
+    -H "Authorization: Bearer $MINIMAX_API_KEY" \
     -H "Content-Type: application/json" \
     -d "{
+        \"model\": \"image-01\",
         \"prompt\": $(echo "$PROMPT" | jq -Rs .),
-        \"num_images\": 1,
         \"aspect_ratio\": \"$ASPECT_RATIO\",
-        \"output_format\": \"$OUTPUT_FORMAT\"
+        \"response_format\": \"url\"
     }")
 
 # Check for errors in response
-if echo "$RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
-    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.error // .detail // "Unknown error"')
+if echo "$RESPONSE" | jq -e '.base_resp.status_code != 0' > /dev/null 2>&1; then
+    ERROR_MSG=$(echo "$RESPONSE" | jq -r '.base_resp.status_msg // "Unknown error"')
     log_error "Image generation failed: $ERROR_MSG"
     exit 1
 fi
 
 # Extract image URL
-IMAGE_URL=$(echo "$RESPONSE" | jq -r '.images[0].url // empty')
+IMAGE_URL=$(echo "$RESPONSE" | jq -r '.data.image_urls[0] // empty')
 
 if [ -z "$IMAGE_URL" ]; then
     log_error "Failed to extract image URL from response"
@@ -106,13 +106,7 @@ if [ -z "$IMAGE_URL" ]; then
 fi
 
 log_info "Image generated successfully!"
-log_info "URL: $IMAGE_URL"
-
-# Get revised prompt if available
-REVISED_PROMPT=$(echo "$RESPONSE" | jq -r '.revised_prompt // empty')
-if [ -n "$REVISED_PROMPT" ]; then
-    log_info "Revised prompt: $REVISED_PROMPT"
-fi
+log_info "URL (valid for 24h): $IMAGE_URL"
 
 # Send via OpenClaw
 log_info "Sending to channel: $CHANNEL"

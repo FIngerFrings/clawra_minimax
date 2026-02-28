@@ -10,7 +10,7 @@ npx clawra@latest
 
 This will:
 1. Check OpenClaw is installed
-2. Guide you to get a fal.ai API key
+2. Guide you to get a MiniMax API key
 3. Install the skill to `~/.openclaw/skills/clawra-selfie/`
 4. Configure OpenClaw to use the skill
 5. Add selfie capabilities to your agent's SOUL.md
@@ -32,7 +32,7 @@ Clawra Selfie enables your OpenClaw agent to:
 ## Prerequisites
 
 - [OpenClaw](https://github.com/openclaw/openclaw) installed and configured
-- [fal.ai](https://fal.ai) account (free tier available)
+- [MiniMax Platform](https://platform.minimaxi.com) account
 
 ## Manual Installation
 
@@ -40,7 +40,7 @@ If you prefer manual setup:
 
 ### 1. Get API Key
 
-Visit [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys) and create an API key.
+Visit [MiniMax API Keys](https://platform.minimaxi.com/user-center/basic-information/interface-key) and create an API key.
 
 ### 2. Clone the Skill
 
@@ -59,7 +59,7 @@ Add to `~/.openclaw/openclaw.json`:
       "clawra-selfie": {
         "enabled": true,
         "env": {
-          "FAL_KEY": "your_fal_key_here"
+          "MINIMAX_API_KEY": "your_minimax_key_here"
         }
       }
     }
@@ -101,7 +101,7 @@ This ensures consistent appearance across all generated images.
 
 ## Technical Details
 
-- **Image Generation**: xAI Grok Imagine via fal.ai
+- **Image Generation**: MiniMax image-01 via MiniMax API
 - **Messaging**: OpenClaw Gateway API
 - **Supported Platforms**: Discord, Telegram, WhatsApp, Slack, Signal, MS Teams
 
