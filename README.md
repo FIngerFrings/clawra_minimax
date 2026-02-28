@@ -45,7 +45,7 @@ Visit [MiniMax API Keys](https://platform.minimaxi.com/user-center/basic-informa
 ### 2. Clone the Skill
 
 ```bash
-git clone https://github.com/SumeLabs/clawra ~/.openclaw/skills/clawra-selfie
+git clone https://github.com/FIngerFrings/clawra_minimax ~/.openclaw/skills/clawra-selfie
 ```
 
 ### 3. Configure OpenClaw
