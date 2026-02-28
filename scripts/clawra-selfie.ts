@@ -16,6 +16,9 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 
+// Fixed reference image
+const REFERENCE_IMAGE = "https://cdn.jsdelivr.net/gh/FIngerFrings/clawra_minimax@main/assets/clawra.png";
+
 const execAsync = promisify(exec);
 
 // Types
@@ -91,6 +94,12 @@ async function generateImage(
       prompt: input.prompt,
       aspect_ratio: input.aspect_ratio || "1:1",
       response_format: "url",
+      subject_reference: [
+        {
+          type: "character",
+          image_file: REFERENCE_IMAGE
+        }
+      ]
     }),
   });
 
@@ -100,7 +109,7 @@ async function generateImage(
   }
 
   const result: MiniMaxResponse = await response.json();
-  
+
   if (result.base_resp.status_code !== 0) {
     throw new Error(`Image generation failed: ${result.base_resp.status_msg}`);
   }
@@ -170,7 +179,7 @@ async function generateAndSend(options: GenerateAndSendOptions): Promise<Result>
   });
 
   if (!imageResult.data || !imageResult.data.image_urls || imageResult.data.image_urls.length === 0) {
-      throw new Error("No image URL returned from the API.");
+    throw new Error("No image URL returned from the API.");
   }
 
   const imageUrl = imageResult.data.image_urls[0];

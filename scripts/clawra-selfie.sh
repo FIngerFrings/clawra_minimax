@@ -30,6 +30,10 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Fixed reference image
+REFERENCE_IMAGE="https://cdn.jsdelivr.net/gh/FIngerFrings/clawra_minimax@main/assets/clawra.png"
+
+
 # Check required environment variables
 if [ -z "${MINIMAX_API_KEY:-}" ]; then
     log_error "MINIMAX_API_KEY environment variable not set"
@@ -86,7 +90,13 @@ RESPONSE=$(curl -s -X POST "https://api.minimaxi.com/v1/image_generation" \
         \"model\": \"image-01\",
         \"prompt\": $(echo "$PROMPT" | jq -Rs .),
         \"aspect_ratio\": \"$ASPECT_RATIO\",
-        \"response_format\": \"url\"
+        \"response_format\": \"url\",
+        \"subject_reference\": [
+            {
+                \"type\": \"character\",
+                \"image_file\": \"$REFERENCE_IMAGE\"
+            }
+        ]
     }")
 
 # Check for errors in response

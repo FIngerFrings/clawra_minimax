@@ -161,6 +161,9 @@ if [ -z "$MINIMAX_API_KEY" ]; then
   exit 1
 fi
 
+# Fixed reference image
+REFERENCE_IMAGE="https://cdn.jsdelivr.net/gh/FIngerFrings/clawra_minimax@main/assets/clawra.png"
+
 USER_CONTEXT="$1"
 CHANNEL="$2"
 MODE="${3:-auto}"  # mirror, direct, or auto
@@ -199,7 +202,19 @@ echo "Generating image with prompt: $EDIT_PROMPT"
 # Generate image (using jq for proper JSON escaping)
 JSON_PAYLOAD=$(jq -n \
   --arg prompt "$EDIT_PROMPT" \
-  '{model: "image-01", prompt: $prompt, aspect_ratio: "1:1", response_format: "url"}')
+  --arg image_url "$REFERENCE_IMAGE" \
+  '{
+    model: "image-01", 
+    prompt: $prompt, 
+    aspect_ratio: "1:1", 
+    response_format: "url",
+    subject_reference: [
+      {
+        type: "character",
+        image_file: $image_url
+      }
+    ]
+  }')
 
 RESPONSE=$(curl -s -X POST "https://api.minimaxi.com/v1/image_generation" \
   -H "Authorization: Bearer $MINIMAX_API_KEY" \
@@ -241,6 +256,9 @@ echo "Done!"
 ```typescript
 import { exec } from "child_process";
 import { promisify } from "util";
+
+// Fixed reference image
+const REFERENCE_IMAGE = "https://cdn.jsdelivr.net/gh/FIngerFrings/clawra_minimax@main/assets/clawra.png";
 
 const execAsync = promisify(exec);
 
@@ -303,7 +321,13 @@ async function generateAndSend(
       model: "image-01",
       prompt: editPrompt,
       aspect_ratio: "1:1",
-      response_format: "url"
+      response_format: "url",
+      subject_reference: [
+        {
+          type: "character",
+          image_file: REFERENCE_IMAGE
+        }
+      ]
     })
   });
 
